@@ -3,9 +3,12 @@ on:
   push:
     branches: [sari2-native-build-20260819]
     paths:
-      - 'sari2-native-build/**'
+      - 'sari2-native-build/payload.b64'
       - '.github/workflows/sari2-native-build.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -13,6 +16,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: sari2-native-build-20260819
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -30,14 +35,13 @@ jobs:
       - name: Build native APK
         working-directory: /tmp/sari2_ci_payload
         run: gradle --no-daemon :app:assembleRelease
-      - name: Extract classes.dex
+      - name: Publish compiled dex to temp branch
         run: |
-          mkdir -p /tmp/artifact
-          unzip -p /tmp/sari2_ci_payload/app/build/outputs/apk/release/app-release-unsigned.apk classes.dex > /tmp/artifact/classes.dex
-          cp /tmp/sari2_ci_payload/app/build/outputs/apk/release/app-release-unsigned.apk /tmp/artifact/native-unsigned.apk
-          ls -lh /tmp/artifact/*
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sari2-native-v042c
-          path: /tmp/artifact/
-          retention-days: 1
+          unzip -p /tmp/sari2_ci_payload/app/build/outputs/apk/release/app-release-unsigned.apk classes.dex > /tmp/classes.dex
+          base64 -w0 /tmp/classes.dex > sari2-native-build/classes.dex.b64
+          printf '%s\n' "$(sha256sum /tmp/classes.dex | awk '{print $1}')" > sari2-native-build/classes.dex.sha256
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sari2-native-build/classes.dex.b64 sari2-native-build/classes.dex.sha256
+          git commit -m 'Sari2 native dex output [skip ci]' || true
+          git push origin HEAD:sari2-native-build-20260819
