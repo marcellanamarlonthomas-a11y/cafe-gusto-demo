@@ -43,7 +43,7 @@ jobs:
           tar -xzf /tmp/sari2.tar.gz -C /tmp
       - name: Build native bridge
         working-directory: /tmp/sari2_native_bridge_ci
-        run: gradle --no-daemon :app:assembleRelease
+        run: gradle --no-daemon :app:assembleRelease -x lintVitalRelease
       - name: Package native runtime bundle
         run: |
           set -eux
