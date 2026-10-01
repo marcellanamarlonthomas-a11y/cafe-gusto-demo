@@ -8,12 +8,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,16 +32,21 @@ jobs:
         run: |
           base64 -d sari2-native-build/payload.b64 > /tmp/sari2.tar.gz
           tar -xzf /tmp/sari2.tar.gz -C /tmp
-      - name: Build native APK
-        working-directory: /tmp/sari2_ci_payload
+      - name: Build native bridge
+        working-directory: /tmp/sari2_native_bridge_ci
         run: gradle --no-daemon :app:assembleRelease
-      - name: Publish compiled dex to temp branch
+      - name: Package native runtime bundle
         run: |
-          unzip -p /tmp/sari2_ci_payload/app/build/outputs/apk/release/app-release-unsigned.apk classes.dex > /tmp/classes.dex
-          base64 -w0 /tmp/classes.dex > sari2-native-build/classes.dex.b64
-          printf '%s\n' "$(sha256sum /tmp/classes.dex | awk '{print $1}')" > sari2-native-build/classes.dex.sha256
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add sari2-native-build/classes.dex.b64 sari2-native-build/classes.dex.sha256
-          git commit -m 'Sari2 native dex output [skip ci]' || true
-          git push origin HEAD:sari2-native-build-20260819
+          set -eux
+          APK=/tmp/sari2_native_bridge_ci/app/build/outputs/apk/release/app-release-unsigned.apk
+          mkdir -p /tmp/native-bundle
+          unzip -j "$APK" 'classes*.dex' -d /tmp/native-bundle/
+          unzip "$APK" 'lib/*' -d /tmp/native-bundle/
+          unzip -l "$APK" > /tmp/native-bundle/APK_CONTENTS.txt
+          sha256sum /tmp/native-bundle/classes*.dex /tmp/native-bundle/lib/*/*.so > /tmp/native-bundle/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sari2-native-ort130-bundle
+          path: /tmp/native-bundle
+          if-no-files-found: error
+          retention-days: 1
