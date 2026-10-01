@@ -53,6 +53,8 @@ jobs:
           unzip "$APK" 'lib/*' -d /tmp/native-bundle/
           unzip -l "$APK" > /tmp/native-bundle/APK_CONTENTS.txt
           sha256sum /tmp/native-bundle/classes*.dex /tmp/native-bundle/lib/*/*.so > /tmp/native-bundle/SHA256SUMS.txt
+          curl -L --fail --retry 3 -o /tmp/native-bundle/apktool_3.0.3.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          echo 'dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  /tmp/native-bundle/apktool_3.0.3.jar' | sha256sum -c -
       - uses: actions/upload-artifact@v4
         with:
           name: sari2-native-ort130-bundle
