@@ -35,7 +35,11 @@ jobs:
           gradle-version: '8.11.1'
       - name: Restore native project
         run: |
-          base64 -d sari2-native-build/payload.b64 > /tmp/sari2.tar.gz
+          python3 - <<'PY'
+          import base64, pathlib
+          s=pathlib.Path('sari2-native-build/payload.b64').read_text(encoding='utf-8').strip()
+          pathlib.Path('/tmp/sari2.tar.gz').write_bytes(base64.b64decode(s, validate=True))
+          PY
           tar -xzf /tmp/sari2.tar.gz -C /tmp
       - name: Build native bridge
         working-directory: /tmp/sari2_native_bridge_ci
