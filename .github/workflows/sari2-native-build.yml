@@ -41,9 +41,41 @@ jobs:
           pathlib.Path('/tmp/sari2.tar.gz').write_bytes(base64.b64decode(s, validate=True))
           PY
           tar -xzf /tmp/sari2.tar.gz -C /tmp
+      - name: Add DINOv2 model for Android runtime smoke
+        run: |
+          mkdir -p /tmp/sari2_native_bridge_ci/app/src/main/assets/www/models
+          curl -L --fail --retry 5 --retry-all-errors -o /tmp/sari2_native_bridge_ci/app/src/main/assets/www/models/dinov2-small-int8.onnx \
+            'https://huggingface.co/onnx-community/dinov2-small-ONNX/resolve/main/onnx/model_int8.onnx?download=true'
+          echo 'e48d69984ee26d089e5c690cb39a727e38b95e2a525d7269f5ac366b02a6c22a  /tmp/sari2_native_bridge_ci/app/src/main/assets/www/models/dinov2-small-int8.onnx' | sha256sum -c -
       - name: Build native bridge
         working-directory: /tmp/sari2_native_bridge_ci
-        run: gradle --no-daemon :app:assembleRelease -x lintVitalRelease
+        run: gradle --no-daemon :app:assembleRelease :app:assembleDebug -x lintVitalRelease
+      - name: Android native ORT runtime smoke
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
+          script: |
+            adb logcat -c
+            adb install -r /tmp/sari2_native_bridge_ci/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -n com.ltgsystems.sarisaripos.nativebridge/com.ltgsystems.sarisaripos.BridgeSmokeActivity
+            for i in $(seq 1 45); do
+              LOG="$(adb logcat -d -s Sari2NativeSmoke:I Sari2NativeSmoke:E '*:S' || true)"
+              echo "$LOG"
+              if echo "$LOG" | grep -q 'NATIVE_SMARTSCAN_PASS'; then
+                exit 0
+              fi
+              if echo "$LOG" | grep -q 'NATIVE_SMARTSCAN_FAIL'; then
+                exit 1
+              fi
+              sleep 1
+            done
+            echo 'Native Smart Scan smoke timed out'
+            exit 1
       - name: Package native runtime bundle
         run: |
           set -eux
